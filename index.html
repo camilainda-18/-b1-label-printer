@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+
 <title>B1 2-Inch Circle Printer</title>
 
 <style>
@@ -61,6 +62,11 @@ button{
   color:#fff;
 }
 
+button:disabled{
+  opacity:.5;
+  cursor:not-allowed;
+}
+
 input[type=file]{
   display:none;
 }
@@ -84,8 +90,8 @@ input[type=range]{
 }
 
 #preview{
-  max-width:82%;
-  max-height:82%;
+  max-width:78%;
+  max-height:78%;
   object-fit:contain;
   display:none;
 }
@@ -101,6 +107,7 @@ input[type=range]{
 .small{
   color:#666;
   font-size:14px;
+  line-height:1.4;
 }
 </style>
 </head>
@@ -114,17 +121,21 @@ input[type=range]{
 <h1>NIIMBOT B1 — 2" Circle</h1>
 
 <p>
-Upload your label image, connect the B1, then print one circle.
+Upload your label image, connect the B1, then print one test label.
 </p>
 
 <label class="fileButton" for="imageInput">
 Choose Label Picture
 </label>
 
-<input id="imageInput" type="file" accept="image/*">
+<input
+  id="imageInput"
+  type="file"
+  accept="image/*"
+>
 
 <div id="previewWrap">
-  <img id="preview">
+  <img id="preview" alt="Label preview">
 </div>
 
 <label>
@@ -132,18 +143,30 @@ Darkness:
 <strong id="densityValue">3</strong>
 </label>
 
-<input id="density" type="range" min="1" max="5" value="3">
+<input
+  id="density"
+  type="range"
+  min="1"
+  max="5"
+  value="3"
+>
 
-<button id="connectButton" class="connect">
+<button
+  id="connectButton"
+  class="connect">
 Connect B1
 </button>
 
-<button id="printButton" class="print">
+<button
+  id="printButton"
+  class="print">
 Print 1 Label
 </button>
 
 <p class="small">
-2-inch circles = 50.8 mm. The B1 printhead is 384 px wide.
+2-inch circle = 50.8 mm.
+The B1 uses a 384-pixel-wide printhead.
+This page sends a 384 × 406 px label.
 </p>
 
 <div id="status" class="status">
@@ -153,7 +176,6 @@ Ready.
 </div>
 
 </div>
-
 
 <script src="https://iscarelli.github.io/niimbot-web-bluetooth/src/niimbot.js"></script>
 
@@ -165,7 +187,7 @@ const imageInput =
 const preview =
   document.getElementById("preview");
 
-const status =
+const statusEl =
   document.getElementById("status");
 
 const density =
@@ -180,36 +202,47 @@ const connectButton =
 const printButton =
   document.getElementById("printButton");
 
-
 let imageUrl = null;
 
 
-// NIIMBOT B1
+/*
+  NIIMBOT B1
+*/
+
 const model = {
   label: "Niimbot B1",
   id: 4096,
-  name_prefixes:["B1"],
-  task:"b1",
-  dpi:203,
-  density:3,
-  label_type:1,
-  speed:1
+  name_prefixes: ["B1"],
+  task: "b1",
+  dpi: 203,
+  density: 3,
+  label_type: 1,
+  speed: 1
 };
 
 
-// 2-inch circle
-// B1 printhead = 384 px wide
-// 50.8 mm tall ≈ 406 px at 203 DPI
+/*
+  2-inch circle
+
+  50.8 mm at 203 DPI is about 406 px tall.
+  B1 printhead max width is about 384 px.
+*/
+
 const size = {
-  label:"2 inch circle",
-  w_px:384,
-  h_px:406,
-  offset_y_px:0
+  label: "2 inch circle",
+  w_px: 384,
+  h_px: 406,
+  offset_y_px: 0
 };
 
 
 function setStatus(text){
-  status.textContent = text;
+  statusEl.textContent = text;
+}
+
+
+function sleep(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 
@@ -224,28 +257,25 @@ imageInput.onchange = () => {
     imageInput.files &&
     imageInput.files[0];
 
-  if(!file)
+  if(!file){
     return;
+  }
 
-
-  if(imageUrl)
+  if(imageUrl){
     URL.revokeObjectURL(imageUrl);
-
+  }
 
   imageUrl =
     URL.createObjectURL(file);
 
-
   preview.src =
     imageUrl;
-
 
   preview.style.display =
     "block";
 
-
   setStatus(
-    "Image loaded."
+    "Image loaded. Click Connect B1."
   );
 };
 
@@ -254,39 +284,44 @@ connectButton.onclick = async () => {
 
   try{
 
-    if(!window.Niimbot)
+    if(!window.Niimbot){
       throw new Error(
-        "Driver failed to load."
+        "Printer driver did not load."
       );
+    }
 
-
-    if(!Niimbot.isSupported())
+    if(!Niimbot.isSupported()){
       throw new Error(
-        "Use Chrome or Edge."
+        "Use Chrome or Edge on desktop."
       );
+    }
 
+    connectButton.disabled = true;
 
     setStatus(
-      "Opening Bluetooth..."
+      "Opening Bluetooth chooser..."
     );
-
 
     const info =
       await Niimbot.identify(model);
 
-
     setStatus(
       "Connected to B1.\n" +
-      JSON.stringify(info,null,2)
+      JSON.stringify(info, null, 2)
     );
 
-
   }catch(error){
+
+    console.error(error);
 
     setStatus(
       "Connect error:\n" +
       (error.message || error)
     );
+
+  }finally{
+
+    connectButton.disabled = false;
 
   }
 
@@ -297,13 +332,45 @@ printButton.onclick = async () => {
 
   try{
 
-    if(!imageUrl)
+    if(!imageUrl){
       throw new Error(
-        "Choose your logo first."
+        "Choose your label picture first."
       );
+    }
 
+    if(!window.Niimbot){
+      throw new Error(
+        "Printer driver did not load."
+      );
+    }
 
     printButton.disabled = true;
+
+    /*
+      Slower / more conservative B1 transfer settings.
+      These are aimed at the intermittent PageEnd problem.
+    */
+
+    Niimbot.WRITE_MODE = "paced";
+
+    Niimbot.PACE_MS = 15;
+
+    Niimbot.BUNDLE_MAX = 120;
+
+    Niimbot.PAGE_WAIT_MS = 40000;
+
+
+    setStatus(
+      "Preparing printer..."
+    );
+
+    /*
+      Refresh the B1 session before each print.
+    */
+
+    await Niimbot.identify(model);
+
+    await sleep(1000);
 
 
     setStatus(
@@ -314,34 +381,35 @@ printButton.onclick = async () => {
     await Niimbot.printImage(
       imageUrl,
       {
-        model:model,
-        size:size,
-        copies:1,
-        density:
-          Number(density.value),
+        model: model,
+        size: size,
+        copies: 1,
+        density: Number(density.value),
 
-        onProgress:
-          (message) =>
-            setStatus(message)
+        onProgress: (message) => {
+          setStatus(message);
+        }
       }
     );
 
 
     setStatus(
-      "Finished. Check the label."
+      "Print finished.\nWait 2 seconds before printing another label."
     );
+
+
+    await sleep(2000);
 
 
   }catch(error){
 
     console.error(error);
 
-
     setStatus(
       "Print error:\n" +
-      (error.message || error)
+      (error.message || error) +
+      "\n\nIf it printed anyway, wait a few seconds and reconnect before trying again."
     );
-
 
   }finally{
 
